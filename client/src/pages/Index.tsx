@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
-import JoinRoom from "@/components/JoinRoom";
-import ChatRoom from "@/components/ChatRoom";
-import { Toaster } from "@/components/ui/toaster";
-import { useToast } from "@/hooks/use-toast";
+import { useEffect, useState, useRef } from 'react';
+import JoinRoom from '@/components/JoinRoom';
+import ChatRoom from '@/components/ChatRoom';
+import { Toaster } from '@/components/ui/toaster';
+import { useToast } from '@/hooks/use-toast';
 
 export interface MessageData {
   id: string;
@@ -16,87 +16,156 @@ const Index = () => {
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const [roomName, setRoomName] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageData[]>([]);
-  const [currentRoom, setCurrentRoom] = useState<string | null>(null);
-  const [username, setUsername] = useState<string>("");
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const { toast } = useToast();
 
+  // Use refs to persist critical state
+  const currentRoomRef = useRef<string | null>(null);
+  const usernameRef = useRef<string>('');
+  const socketRef = useRef<WebSocket | null>(null);
+
   useEffect(() => {
-    const ws = new WebSocket("ws://localhost:8080");
-    ws.onopen = () => {
-      setIsConnected(true);
-      console.log("websocket connection established!");
-    };
-    ws.onmessage = (e: MessageEvent) => {
-      const response = JSON.parse(e.data);
-      console.log("Received message:", response);
+    console.log('Index useEffect running, socketRef:', socketRef.current);
 
-      if (response.type == "room-created") {
-        setCurrentRoom(response.payload.roomId);
-        setUsername(response.payload.username);
-        setRoomName(response.payload.roomName);
-        toast({
-          title: `room: ${response.payload.roomName} created!`,
-          description: `${response.payload.username} created a new room with ID: ${response.payload.roomId}!`,
-        });
-      } else if (response.type == "user-joined") {
-        setCurrentRoom(response.payload.roomId);
-        setUsername(response.payload.username);
-        setRoomName(response.payload.roomName);
-        toast({
-          title: `${response.payload.username} joined!`,
-          description: `room ID: ${response.payload.roomId}!`,
-        });
-      } // In Index.tsx
-      else if (response.type === "chat") {
-        if (response.payload.roomId === currentRoom) {
-          const newMessage: MessageData = {
-            id: response.payload.id,
-            content: response.payload.content,
-            timestamp: new Date(response.payload.timestamp),
-            isCurrentUser: response.payload.username === username,
-            username: response.payload.username,
-          };
-          setMessages((prev) => [...prev, newMessage]);
-        }
-      } else if (response.type === "error") {
-        toast({
-          variant: "destructive",
-          title: "error in joining",
-          description: response.payload.message,
-        });
-      } else if (response.type === "user-left") {
-        toast({
-          title: `${response.payload.username} left.`,
-          description: `${response.payload.message} ${response.payload.roomId}.`,
-        });
-      } else {
-        toast({
-          variant: "destructive",
-          title: "error",
-          description: "some unexpected error occured",
-        });
-      }
-    };
-    ws.onerror = (e) => {
-      console.log("websocket error: ", e);
-    };
-    ws.onclose = () => {
-      setSocket(null);
-      console.log("websocket connection closed!");
-    };
+    // Prevent multiple WebSocket connections
+    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+      console.log('WebSocket already open, skipping creation');
+      return;
+    }
 
+    const ws = new WebSocket('ws://localhost:8080');
+    socketRef.current = ws;
     setSocket(ws);
 
+    ws.onopen = () => {
+      setIsConnected(true);
+      console.log('WebSocket connection established, ws:', ws);
+    };
+
+    ws.onmessage = (e: MessageEvent) => {
+      try {
+        const response = JSON.parse(e.data);
+        console.log('Received message:', JSON.stringify(response, null, 2));
+
+        if (response.type === 'room-created') {
+          console.log('Handling room-created:', {
+            roomId: response.payload.roomId,
+            username: response.payload.username,
+            roomName: response.payload.roomName,
+            currentRoomRef: currentRoomRef.current,
+            usernameRef: usernameRef.current,
+          });
+          currentRoomRef.current = response.payload.roomId;
+          usernameRef.current = response.payload.username || 'Unknown';
+          setRoomName(response.payload.roomName || 'Unnamed Room');
+          toast({
+            title: `Room: ${response.payload.roomName} created!`,
+            description: `${response.payload.username} created a new room with ID: ${response.payload.roomId}!`,
+          });
+        } else if (response.type === 'user-joined') {
+          console.log('Handling user-joined:', {
+            roomId: response.payload.roomId,
+            username: response.payload.username,
+            roomName: response.payload.roomName,
+            currentRoomRef: currentRoomRef.current,
+            usernameRef: usernameRef.current,
+          });
+          currentRoomRef.current = response.payload.roomId;
+          usernameRef.current = response.payload.username || 'Unknown';
+          setRoomName(response.payload.roomName || 'Unnamed Room');
+          toast({
+            title: `${response.payload.username} joined!`,
+            description: `Room ID: ${response.payload.roomId}!`,
+          });
+        } else if (response.type === 'chat') {
+          console.log('Chat message details:', {
+            payload: response.payload,
+            currentRoomRef: currentRoomRef.current,
+            usernameRef: usernameRef.current,
+          });
+          if (response.payload.roomId === currentRoomRef.current) {
+            const newMessage: MessageData = {
+              id: response.payload.id,
+              content: response.payload.content,
+              timestamp: new Date(response.payload.timestamp),
+              isCurrentUser: response.payload.username === usernameRef.current,
+              username: response.payload.username,
+            };
+            if (isNaN(newMessage.timestamp.getTime())) {
+              console.error('Invalid timestamp:', response.payload.timestamp);
+              newMessage.timestamp = new Date();
+            }
+            setMessages((prev) => {
+              const updated = [...prev, newMessage];
+              console.log('Updated messages:', updated);
+              return updated;
+            });
+          } else {
+            console.warn('Message ignored: Room ID mismatch', {
+              messageRoomId: response.payload.roomId,
+              currentRoomRef: currentRoomRef.current,
+            });
+          }
+        } else if (response.type === 'error') {
+          console.error('Server error:', response.payload.message);
+          toast({
+            variant: 'destructive',
+            title: 'Error in joining',
+            description: response.payload.message,
+          });
+        } else if (response.type === 'user-left') {
+          console.log('User left:', response.payload);
+          toast({
+            title: `${response.payload.username} left.`,
+            description: `${response.payload.message} ${response.payload.roomId}.`,
+          });
+        } else {
+          console.warn('Unknown message type:', response.type);
+          toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'Some unexpected error occurred',
+          });
+        }
+      } catch (err) {
+        console.error('Failed to parse WebSocket message:', err, e.data);
+      }
+    };
+
+    ws.onerror = (e) => {
+      console.error('WebSocket error:', e);
+    };
+
+    ws.onclose = () => {
+      console.log('WebSocket connection closed, ws:', ws);
+      setSocket(null);
+      setIsConnected(false);
+      socketRef.current = null;
+      // Persist currentRoomRef and usernameRef
+    };
+
     return () => {
-      ws.close();
+      console.log('Cleaning up WebSocket, socketRef:', socketRef.current);
+      if (socketRef.current) {
+        socketRef.current.close();
+        socketRef.current = null;
+      }
     };
   }, []);
+
+  // Log state changes
+  useEffect(() => {
+    console.log('State updated:', {
+      currentRoomRef: currentRoomRef.current,
+      usernameRef: usernameRef.current,
+      isConnected,
+    });
+  }, [isConnected]);
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-white to-gray-50">
       <main className="flex-1 container mx-auto p-4 md:p-6 max-w-5xl">
-        {!currentRoom ? (
+        {!currentRoomRef.current ? (
           <div className="h-full flex items-center justify-center py-12">
             <JoinRoom isConnected={isConnected} socket={socket} />
           </div>
@@ -105,10 +174,10 @@ const Index = () => {
             <ChatRoom
               messages={messages}
               roomName={roomName}
-              roomId={currentRoom}
-              username={username}
+              roomId={currentRoomRef.current}
+              username={usernameRef.current}
               socket={socket}
-              setCurrentRoom={setCurrentRoom}
+              setCurrentRoom={(value: string) => (currentRoomRef.current = value)}
               connected={isConnected}
             />
           </div>

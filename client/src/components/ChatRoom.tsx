@@ -58,7 +58,9 @@ const ChatRoom: React.FC<ChatRoomProps> = ({
   };
 
   const handleSendMessage = () => {
-    if (!inputValue.trim()) return;
+    if (!inputValue.trim() || !socket || socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
 
     socket.send(JSON.stringify({
       type: "chat",
