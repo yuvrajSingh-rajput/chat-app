@@ -4,9 +4,18 @@ import ChatRoom from "@/components/ChatRoom";
 import { Toaster } from "@/components/ui/toaster";
 import { useToast } from "@/hooks/use-toast";
 
+export interface MessageData {
+  id: string;
+  content: string;
+  timestamp: Date;
+  isCurrentUser: boolean;
+  username?: string;
+}
+
 const Index = () => {
   const [socket, setSocket] = useState<WebSocket | null>(null);
   const [roomName, setRoomName] = useState<string | null>(null);
+  const [messages, setMessages] = useState<MessageData[]>([]);
   const [currentRoom, setCurrentRoom] = useState<string | null>(null);
   const [username, setUsername] = useState<string>("");
   const [isConnected, setIsConnected] = useState<boolean>(false);
@@ -37,13 +46,19 @@ const Index = () => {
           description: `room ID: ${response.payload.roomId}!`,
         });
       } else if (response.type == "chat") {
+
       } else if (response.type === "error") {
         toast({
           variant: "destructive",
           title: "error in joining",
           description: response.payload.message,
         });
-      } else {
+      } else if(response.type === "user-left") {
+        toast({
+          title: `${response.payload.username} left.`,
+          description: `${response.payload.message} ${response.payload.roomId}.`,
+        });
+      }else {
         toast({
           variant: "destructive",
           title: "error",
@@ -81,10 +96,12 @@ const Index = () => {
         ) : (
           <div className="h-[80vh] bg-white rounded-lg shadow-md overflow-hidden border">
             <ChatRoom
+              messages={messages}
+              setMessages={setMessages}
               roomName={roomName}
               roomId={currentRoom}
               username={username}
-              onLeaveRoom={handleLeaveRoom}
+              socket={socket}
             />
           </div>
         )}

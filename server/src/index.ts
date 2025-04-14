@@ -67,6 +67,8 @@ wss.on("connection", (socket) => {
               payload: {
                 message: `${message.payload.username} has joined the room.`,
                 roomId: roomId,
+                username: message.payload.username,
+                roomName: roomSockets[0]?.roomName || ''
               }
             }));
           }
@@ -104,7 +106,38 @@ wss.on("connection", (socket) => {
           });
         }
       }
-
+      
+      else if (message.type === "leave-room") {
+        const roomId: string = message.payload.roomId;
+        const username: string = message.payload.username;
+      
+        const roomUsers = allSockets.get(roomId);
+        if (roomUsers) {
+          const updatedUsers = roomUsers.filter(u => u.socket !== socket);
+          if (updatedUsers.length > 0) {
+            allSockets.set(roomId, updatedUsers);
+      
+            // Notify others in the room
+            updatedUsers.forEach(u => {
+              if (u.socket.readyState === WebSocket.OPEN) {
+                u.socket.send(JSON.stringify({
+                  type: "user-left",
+                  payload: {
+                    message: `${username} has left the room`,
+                    roomId: roomId,
+                  }
+                }));
+              }
+            });
+          } else {
+            // No users left in room, delete it
+            allSockets.delete(roomId);
+          }
+      
+          console.log(`${username} left room: ${roomId}`);
+        }
+      }
+      
     } catch (err) {
       console.error("Failed to parse message", err);
     }

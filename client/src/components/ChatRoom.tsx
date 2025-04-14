@@ -9,24 +9,19 @@ import Message from './Message';
 import { ArrowLeft, Copy, MessageCircle, SendHorizontal, Users } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-
-interface MessageData {
-  id: string;
-  content: string;
-  timestamp: Date;
-  isCurrentUser: boolean;
-  username?: string;
-}
+import { MessageData } from '@/pages/Index';
 
 interface ChatRoomProps {
+  messages: MessageData[]
+  setMessages: React.Dispatch<React.SetStateAction<MessageData[]>>;
   roomName: string,
   roomId: string;
   username: string;
-  onLeaveRoom: () => void;
+  socket: WebSocket;
 }
 
-const ChatRoom: React.FC<ChatRoomProps> = ({ roomName, roomId, username, onLeaveRoom }) => {
-  const [messages, setMessages] = useState<MessageData[]>([]);
+const ChatRoom: React.FC<ChatRoomProps> = ({ messages, setMessages, roomName, roomId, username, socket }) => {
+  
   const [inputValue, setInputValue] = useState('');
   const { connected, sendMessage, onMessage } = useWebSocket();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -65,6 +60,16 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ roomName, roomId, username, onLeave
       });
     }
   }, [connected, roomId, toast]);
+
+  const handleLeaveRoom = () => {
+    socket.send(JSON.stringify({
+      type: "leave-room",
+      payload: {
+        roomId: roomId,
+        username: username,
+      }
+    }));
+  };
 
   const handleSendMessage = () => {
     if (!inputValue.trim()) return;
@@ -141,7 +146,7 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ roomName, roomId, username, onLeave
               <Copy className="h-4 w-4" />
             </Button>
           </div>
-          <Button variant="outline" size="sm" onClick={onLeaveRoom} className="gap-1">
+          <Button variant="outline" size="sm" onClick={handleLeaveRoom} className="gap-1">
             <ArrowLeft className="h-4 w-4" />
             Leave
           </Button>
