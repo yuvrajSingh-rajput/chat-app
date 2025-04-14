@@ -29,6 +29,8 @@ const Index = () => {
     };
     ws.onmessage = (e: MessageEvent) => {
       const response = JSON.parse(e.data);
+      console.log("Received message:", response);
+
       if (response.type == "room-created") {
         setCurrentRoom(response.payload.roomId);
         setUsername(response.payload.username);
@@ -45,12 +47,13 @@ const Index = () => {
           title: `${response.payload.username} joined!`,
           description: `room ID: ${response.payload.roomId}!`,
         });
-      } else if (response.type == "chat") {
+      } // In Index.tsx
+      else if (response.type === "chat") {
         if (response.payload.roomId === currentRoom) {
           const newMessage: MessageData = {
-            id: Date.now().toString(),
-            content: response.payload.message,
-            timestamp: new Date(),
+            id: response.payload.id,
+            content: response.payload.content,
+            timestamp: new Date(response.payload.timestamp),
             isCurrentUser: response.payload.username === username,
             username: response.payload.username,
           };

@@ -65,12 +65,13 @@ const ChatRoom: React.FC<ChatRoomProps> = ({
       payload: {
         id: Date.now().toString(),
         content: inputValue,
-        timeStamp: new Date(),
+        timestamp: new Date(),
         username: username,
       }
     }));
 
     setInputValue("");
+    console.log("message sent");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
