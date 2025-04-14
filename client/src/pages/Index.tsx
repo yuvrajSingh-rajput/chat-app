@@ -46,19 +46,28 @@ const Index = () => {
           description: `room ID: ${response.payload.roomId}!`,
         });
       } else if (response.type == "chat") {
-
+        if (response.payload.roomId === currentRoom) {
+          const newMessage: MessageData = {
+            id: Date.now().toString(),
+            content: response.payload.message,
+            timestamp: new Date(),
+            isCurrentUser: response.payload.username === username,
+            username: response.payload.username,
+          };
+          setMessages((prev) => [...prev, newMessage]);
+        }
       } else if (response.type === "error") {
         toast({
           variant: "destructive",
           title: "error in joining",
           description: response.payload.message,
         });
-      } else if(response.type === "user-left") {
+      } else if (response.type === "user-left") {
         toast({
           title: `${response.payload.username} left.`,
           description: `${response.payload.message} ${response.payload.roomId}.`,
         });
-      }else {
+      } else {
         toast({
           variant: "destructive",
           title: "error",
@@ -81,11 +90,6 @@ const Index = () => {
     };
   }, []);
 
-  // Handle leaving a room
-  const handleLeaveRoom = () => {
-    setCurrentRoom(null);
-  };
-
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-b from-white to-gray-50">
       <main className="flex-1 container mx-auto p-4 md:p-6 max-w-5xl">
@@ -97,11 +101,12 @@ const Index = () => {
           <div className="h-[80vh] bg-white rounded-lg shadow-md overflow-hidden border">
             <ChatRoom
               messages={messages}
-              setMessages={setMessages}
               roomName={roomName}
               roomId={currentRoom}
               username={username}
               socket={socket}
+              setCurrentRoom={setCurrentRoom}
+              connected={isConnected}
             />
           </div>
         )}

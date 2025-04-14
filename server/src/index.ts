@@ -3,7 +3,10 @@ import { v4 as uuidv4 } from "uuid";
 
 const wss = new WebSocketServer({ port: 8080 });
 
-const allSockets: Map<string, { socket: WebSocket, username: string, roomName: string }[]> = new Map();
+const allSockets: Map<
+  string,
+  { socket: WebSocket; username: string; roomName: string }[]
+> = new Map();
 
 wss.on("connection", (socket) => {
   console.log("User connected!");
@@ -17,20 +20,24 @@ wss.on("connection", (socket) => {
         const newRoomId: string = uuidv4();
 
         // Add the socket to the new room along with the username and roomName
-        allSockets.set(newRoomId, [{
-          socket,
-          username: message.payload.username,
-          roomName: message.payload.roomName
-        }]);
-
-        socket.send(JSON.stringify({
-          type: "room-created",
-          payload: {
-            roomName: message.payload.roomName,
+        allSockets.set(newRoomId, [
+          {
+            socket,
             username: message.payload.username,
-            roomId: newRoomId,
-          }
-        }));
+            roomName: message.payload.roomName,
+          },
+        ]);
+
+        socket.send(
+          JSON.stringify({
+            type: "room-created",
+            payload: {
+              roomName: message.payload.roomName,
+              username: message.payload.username,
+              roomId: newRoomId,
+            },
+          })
+        );
 
         console.log(`New room created: ${newRoomId}`);
       }
@@ -40,37 +47,41 @@ wss.on("connection", (socket) => {
         const roomId: string = message.payload.roomId;
 
         if (!allSockets.has(roomId)) {
-          socket.send(JSON.stringify({
-            type: "error",
-            payload: {
-              message: `Room ${roomId} does not exist. Please check the Room ID.`
-            }
-          }));
+          socket.send(
+            JSON.stringify({
+              type: "error",
+              payload: {
+                message: `Room ${roomId} does not exist. Please check the Room ID.`,
+              },
+            })
+          );
           return;
         }
 
         // Avoid duplicate join
         const roomSockets = allSockets.get(roomId)!;
-        if (!roomSockets.some(s => s.socket === socket)) {
+        if (!roomSockets.some((s) => s.socket === socket)) {
           roomSockets.push({
             socket,
             username: message.payload.username,
-            roomName: roomSockets[0]?.roomName || '' // Assuming the room name is consistent
+            roomName: roomSockets[0]?.roomName || "", // Assuming the room name is consistent
           });
         }
 
         // Notify others in the room that a new user joined
         roomSockets.forEach((s) => {
           if (s.socket !== socket && s.socket.readyState === WebSocket.OPEN) {
-            s.socket.send(JSON.stringify({
-              type: "user-joined",
-              payload: {
-                message: `${message.payload.username} has joined the room.`,
-                roomId: roomId,
-                username: message.payload.username,
-                roomName: roomSockets[0]?.roomName || ''
-              }
-            }));
+            s.socket.send(
+              JSON.stringify({
+                type: "user-joined",
+                payload: {
+                  message: `${message.payload.username} has joined the room.`,
+                  roomId: roomId,
+                  username: message.payload.username,
+                  roomName: roomSockets[0]?.roomName || "",
+                },
+              })
+            );
           }
         });
 
@@ -80,10 +91,11 @@ wss.on("connection", (socket) => {
       // Handle chat messages
       else if (message.type === "chat") {
         let currentRoomId: string | null = null;
+        const { id, content, timestamp, username } = message.payload;
 
         // Find the room this socket belongs to
         for (const [roomId, sockets] of allSockets.entries()) {
-          if (sockets.some(s => s.socket === socket)) {
+          if (sockets.some((s) => s.socket === socket)) {
             currentRoomId = roomId;
             break;
           }
@@ -92,52 +104,56 @@ wss.on("connection", (socket) => {
         if (currentRoomId) {
           const roomSockets = allSockets.get(currentRoomId)!;
 
-          // Broadcast to other clients in the room
+          // Broadcast to all clients (including sender for syncing UI)
           roomSockets.forEach((s) => {
-            if (s.socket !== socket && s.socket.readyState === WebSocket.OPEN) {
-              s.socket.send(JSON.stringify({
-                type: "chat",
-                payload: {
-                  message: message.payload.message,
-                  username: s.username
-                }
-              }));
+            if (s.socket.readyState === WebSocket.OPEN) {
+              s.socket.send(
+                JSON.stringify({
+                  type: "chat",
+                  payload: {
+                    id, // unique id generated by frontend or server
+                    content,
+                    timestamp,
+                    username,
+                    roomId: currentRoomId,
+                  },
+                })
+              );
             }
           });
         }
-      }
-      
-      else if (message.type === "leave-room") {
+      } else if (message.type === "leave-room") {
         const roomId: string = message.payload.roomId;
         const username: string = message.payload.username;
-      
+
         const roomUsers = allSockets.get(roomId);
         if (roomUsers) {
-          const updatedUsers = roomUsers.filter(u => u.socket !== socket);
+          const updatedUsers = roomUsers.filter((u) => u.socket !== socket);
           if (updatedUsers.length > 0) {
             allSockets.set(roomId, updatedUsers);
-      
+
             // Notify others in the room
-            updatedUsers.forEach(u => {
+            updatedUsers.forEach((u) => {
               if (u.socket.readyState === WebSocket.OPEN) {
-                u.socket.send(JSON.stringify({
-                  type: "user-left",
-                  payload: {
-                    message: `${username} has left the room`,
-                    roomId: roomId,
-                  }
-                }));
+                u.socket.send(
+                  JSON.stringify({
+                    type: "user-left",
+                    payload: {
+                      message: `${username} has left the room`,
+                      roomId: roomId,
+                    },
+                  })
+                );
               }
             });
           } else {
             // No users left in room, delete it
             allSockets.delete(roomId);
           }
-      
+
           console.log(`${username} left room: ${roomId}`);
         }
       }
-      
     } catch (err) {
       console.error("Failed to parse message", err);
     }

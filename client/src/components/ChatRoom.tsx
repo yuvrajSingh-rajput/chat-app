@@ -1,117 +1,102 @@
-
-import React, { useState, useEffect, useRef } from 'react';
-import { useWebSocket } from '@/hooks/useWebSocket';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Separator } from '@/components/ui/separator';
-import { useToast } from '@/hooks/use-toast';
-import Message from './Message';
-import { ArrowLeft, Copy, MessageCircle, SendHorizontal, Users } from 'lucide-react';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { cn } from '@/lib/utils';
-import { MessageData } from '@/pages/Index';
+import React, { useState, useEffect, useRef } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
+import { useToast } from "@/hooks/use-toast";
+import Message from "./Message";
+import {
+  ArrowLeft,
+  Copy,
+  MessageCircle,
+  SendHorizontal,
+  Users,
+} from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
+import { MessageData } from "@/pages/Index";
 
 interface ChatRoomProps {
-  messages: MessageData[]
-  setMessages: React.Dispatch<React.SetStateAction<MessageData[]>>;
-  roomName: string,
+  messages: MessageData[];
+  roomName: string;
   roomId: string;
   username: string;
   socket: WebSocket;
+  setCurrentRoom: React.Dispatch<React.SetStateAction<string>>;
+  connected: boolean;
 }
 
-const ChatRoom: React.FC<ChatRoomProps> = ({ messages, setMessages, roomName, roomId, username, socket }) => {
-  
-  const [inputValue, setInputValue] = useState('');
-  const { connected, sendMessage, onMessage } = useWebSocket();
+const ChatRoom: React.FC<ChatRoomProps> = ({
+  messages,
+  roomName,
+  roomId,
+  username,
+  socket,
+  setCurrentRoom,
+  connected
+}) => {
+  const [inputValue, setInputValue] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
-  
+
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Listen for incoming messages
-  useEffect(() => {
-    const unsubscribe = onMessage((data) => {
-      if (data.type === 'chat') {
-        const newMessage: MessageData = {
-          id: Date.now().toString(),
-          content: data.payload.message,
-          timestamp: new Date(),
-          isCurrentUser: false,
-          username: data.payload.username || 'Other',
-        }; 
-        
-        setMessages(prev => [...prev, newMessage]);
-      }
-    });
-    
-    return unsubscribe;
-  }, [onMessage]);
-
-  // Show notification when joining room
-  useEffect(() => {
-    if (connected) {
-      toast({
-        title: "Connected to chat room",
-        description: `You've joined room: ${roomId}`,
-      });
-    }
-  }, [connected, roomId, toast]);
-
   const handleLeaveRoom = () => {
-    socket.send(JSON.stringify({
-      type: "leave-room",
-      payload: {
-        roomId: roomId,
-        username: username,
-      }
-    }));
+    socket.send(
+      JSON.stringify({
+        type: "leave-room",
+        payload: {
+          roomId: roomId,
+          username: username,
+        },
+      })
+    );
+
+    setCurrentRoom(null);
   };
 
   const handleSendMessage = () => {
     if (!inputValue.trim()) return;
-    
-    // Add message to local state
-    const newMessage: MessageData = {
-      id: Date.now().toString(),
-      content: inputValue,
-      timestamp: new Date(),
-      isCurrentUser: true,
-      username,
-    };
-    
-    setMessages(prev => [...prev, newMessage]);
-    
-    // Send message to server
-    sendMessage(inputValue);
-    
-    // Clear input
-    setInputValue('');
+
+    socket.send(JSON.stringify({
+      type: "chat",
+      payload: {
+        id: Date.now().toString(),
+        content: inputValue,
+        timeStamp: new Date(),
+        username: username,
+      }
+    }));
+
+    setInputValue("");
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
   };
 
   const copyRoomIdToClipboard = () => {
-    navigator.clipboard.writeText(roomId).then(() => {
-      toast({
-        title: "Room ID copied!",
-        description: "You can now share this ID with others to join your chat room.",
+    navigator.clipboard
+      .writeText(roomId)
+      .then(() => {
+        toast({
+          title: "Room ID copied!",
+          description:
+            "You can now share this ID with others to join your chat room.",
+        });
+      })
+      .catch((err) => {
+        toast({
+          variant: "destructive",
+          title: "Failed to copy",
+          description: "Please try again or manually select and copy the ID.",
+        });
       });
-    }).catch(err => {
-      toast({
-        variant: "destructive",
-        title: "Failed to copy",
-        description: "Please try again or manually select and copy the ID.",
-      });
-    });
   };
 
   return (
@@ -131,28 +116,33 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ messages, setMessages, roomName, ro
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center bg-muted rounded-md px-3 py-1">
-            <Input 
-              value={roomId} 
-              readOnly 
+            <Input
+              value={roomId}
+              readOnly
               className="h-8 border-none bg-transparent focus-visible:ring-0 w-[120px] md:w-auto"
             />
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="h-8 px-2 hover:bg-primary/10" 
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 hover:bg-primary/10"
               onClick={copyRoomIdToClipboard}
               title="Copy Room ID"
             >
               <Copy className="h-4 w-4" />
             </Button>
           </div>
-          <Button variant="outline" size="sm" onClick={handleLeaveRoom} className="gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleLeaveRoom}
+            className="gap-1"
+          >
             <ArrowLeft className="h-4 w-4" />
             Leave
           </Button>
         </div>
       </header>
-      
+
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-6 pb-4 px-2">
           {messages.length === 0 ? (
@@ -162,7 +152,9 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ messages, setMessages, roomName, ro
                   <MessageCircle className="h-8 w-8 text-muted-foreground/70" />
                 </div>
                 <p className="text-lg font-medium mb-2">No messages yet</p>
-                <p className="text-sm max-w-sm">Share the room ID with others to start chatting together</p>
+                <p className="text-sm max-w-sm">
+                  Share the room ID with others to start chatting together
+                </p>
               </div>
             </div>
           ) : (
@@ -172,21 +164,26 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ messages, setMessages, roomName, ro
                 content={message.content}
                 timestamp={message.timestamp}
                 isCurrentUser={message.isCurrentUser}
-                username={message.username || (message.isCurrentUser ? username : 'Other')}
+                username={
+                  message.username ||
+                  (message.isCurrentUser ? username : "Other")
+                }
               />
             ))
           )}
           <div ref={messagesEndRef} />
         </div>
       </ScrollArea>
-      
+
       <Separator />
-      
+
       <div className="p-4 bg-card">
-        <div className={cn(
-          "flex gap-2 transition-opacity",
-          !connected && "opacity-70"
-        )}>
+        <div
+          className={cn(
+            "flex gap-2 transition-opacity",
+            !connected && "opacity-70"
+          )}
+        >
           <Input
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
@@ -195,8 +192,8 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ messages, setMessages, roomName, ro
             className="flex-1"
             disabled={!connected}
           />
-          <Button 
-            onClick={handleSendMessage} 
+          <Button
+            onClick={handleSendMessage}
             disabled={!connected || !inputValue.trim()}
             className="bg-chat-primary hover:bg-chat-primary/90"
           >
