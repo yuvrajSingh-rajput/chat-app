@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 
 const wss = new WebSocketServer({ port: 8080 });
 
-const allSockets: Map<string, WebSocket[]> = new Map();
+const allSockets: Map<string, { socket: WebSocket, username: string, roomName: string }[]> = new Map();
 
 wss.on("connection", (socket) => {
   console.log("User connected!");
@@ -16,7 +16,12 @@ wss.on("connection", (socket) => {
       if (message.type === "create-room") {
         const newRoomId: string = uuidv4();
 
-        allSockets.set(newRoomId, [socket]);
+        // Add the socket to the new room along with the username and roomName
+        allSockets.set(newRoomId, [{
+          socket,
+          username: message.payload.username,
+          roomName: message.payload.roomName
+        }]);
 
         socket.send(JSON.stringify({
           type: "room-created",
@@ -27,11 +32,13 @@ wss.on("connection", (socket) => {
           }
         }));
 
-        console.log(`new room created: ${newRoomId}`);
+        console.log(`New room created: ${newRoomId}`);
       }
 
-      else if(message.type == "join-room"){
+      // Handle joining a room
+      else if (message.type === "join-room") {
         const roomId: string = message.payload.roomId;
+
         if (!allSockets.has(roomId)) {
           socket.send(JSON.stringify({
             type: "error",
@@ -41,24 +48,29 @@ wss.on("connection", (socket) => {
           }));
           return;
         }
+
         // Avoid duplicate join
         const roomSockets = allSockets.get(roomId)!;
-        if (!roomSockets.includes(socket)) {
-          roomSockets.push(socket);
+        if (!roomSockets.some(s => s.socket === socket)) {
+          roomSockets.push({
+            socket,
+            username: message.payload.username,
+            roomName: roomSockets[0]?.roomName || '' // Assuming the room name is consistent
+          });
         }
 
+        // Notify others in the room that a new user joined
         roomSockets.forEach((s) => {
-          if(s !== socket && s.readyState === WebSocket.OPEN){
-            s.send(JSON.stringify({
+          if (s.socket !== socket && s.socket.readyState === WebSocket.OPEN) {
+            s.socket.send(JSON.stringify({
               type: "user-joined",
               payload: {
-                
-                message: "a new user joined the room",
+                message: `${message.payload.username} has joined the room.`,
                 roomId: roomId,
               }
             }));
           }
-        })
+        });
 
         console.log(`User joined room: ${roomId}`);
       }
@@ -69,7 +81,7 @@ wss.on("connection", (socket) => {
 
         // Find the room this socket belongs to
         for (const [roomId, sockets] of allSockets.entries()) {
-          if (sockets.includes(socket)) {
+          if (sockets.some(s => s.socket === socket)) {
             currentRoomId = roomId;
             break;
           }
@@ -80,11 +92,12 @@ wss.on("connection", (socket) => {
 
           // Broadcast to other clients in the room
           roomSockets.forEach((s) => {
-            if (s !== socket && s.readyState === WebSocket.OPEN) {
-              s.send(JSON.stringify({
+            if (s.socket !== socket && s.socket.readyState === WebSocket.OPEN) {
+              s.socket.send(JSON.stringify({
                 type: "chat",
                 payload: {
                   message: message.payload.message,
+                  username: s.username
                 }
               }));
             }
@@ -102,7 +115,7 @@ wss.on("connection", (socket) => {
 
     // Remove socket from all rooms
     for (const [roomId, sockets] of allSockets.entries()) {
-      const filtered = sockets.filter((s) => s !== socket);
+      const filtered = sockets.filter((s) => s.socket !== socket);
       if (filtered.length > 0) {
         allSockets.set(roomId, filtered);
       } else {
