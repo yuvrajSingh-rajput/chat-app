@@ -1,8 +1,8 @@
-import { useEffect, useState, useRef } from 'react';
-import JoinRoom from '@/components/JoinRoom';
-import ChatRoom from '@/components/ChatRoom';
-import { Toaster } from '@/components/ui/toaster';
-import { useToast } from '@/hooks/use-toast';
+import { useEffect, useState, useRef } from "react";
+import JoinRoom from "@/components/JoinRoom";
+import ChatRoom from "@/components/ChatRoom";
+import { Toaster } from "@/components/ui/toaster";
+import { useToast } from "@/hooks/use-toast";
 
 export interface MessageData {
   id: string;
@@ -21,34 +21,34 @@ const Index = () => {
 
   // Use refs to persist critical state
   const currentRoomRef = useRef<string | null>(null);
-  const usernameRef = useRef<string>('');
+  const usernameRef = useRef<string>("");
   const socketRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    console.log('Index useEffect running, socketRef:', socketRef.current);
+    console.log("Index useEffect running, socketRef:", socketRef.current);
 
     // Prevent multiple WebSocket connections
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-      console.log('WebSocket already open, skipping creation');
+      console.log("WebSocket already open, skipping creation");
       return;
     }
 
-    const ws = new WebSocket('ws://localhost:8080');
+    const ws = new WebSocket("ws://localhost:8080");
     socketRef.current = ws;
     setSocket(ws);
 
     ws.onopen = () => {
       setIsConnected(true);
-      console.log('WebSocket connection established, ws:', ws);
+      console.log("WebSocket connection established, ws:", ws);
     };
 
     ws.onmessage = (e: MessageEvent) => {
       try {
         const response = JSON.parse(e.data);
-        console.log('Received message:', JSON.stringify(response, null, 2));
+        console.log("Received message:", JSON.stringify(response, null, 2));
 
-        if (response.type === 'room-created') {
-          console.log('Handling room-created:', {
+        if (response.type === "room-created") {
+          console.log("Handling room-created:", {
             roomId: response.payload.roomId,
             username: response.payload.username,
             roomName: response.payload.roomName,
@@ -56,14 +56,14 @@ const Index = () => {
             usernameRef: usernameRef.current,
           });
           currentRoomRef.current = response.payload.roomId;
-          usernameRef.current = response.payload.username || 'Unknown';
-          setRoomName(response.payload.roomName || 'Unnamed Room');
+          usernameRef.current = response.payload.username || "Unknown";
+          setRoomName(response.payload.roomName || "Unnamed Room");
           toast({
             title: `Room: ${response.payload.roomName} created!`,
             description: `${response.payload.username} created a new room with ID: ${response.payload.roomId}!`,
           });
-        } else if (response.type === 'user-joined') {
-          console.log('Handling user-joined:', {
+        } else if (response.type === "user-joined") {
+          console.log("Handling user-joined:", {
             roomId: response.payload.roomId,
             username: response.payload.username,
             roomName: response.payload.roomName,
@@ -71,14 +71,14 @@ const Index = () => {
             usernameRef: usernameRef.current,
           });
           currentRoomRef.current = response.payload.roomId;
-          usernameRef.current = response.payload.username || 'Unknown';
-          setRoomName(response.payload.roomName || 'Unnamed Room');
+          // usernameRef.current = response.payload.username || 'Unknown';
+          setRoomName(response.payload.roomName || "Unnamed Room");
           toast({
             title: `${response.payload.username} joined!`,
             description: `Room ID: ${response.payload.roomId}!`,
           });
-        } else if (response.type === 'chat') {
-          console.log('Chat message details:', {
+        } else if (response.type === "chat") {
+          console.log("Chat message details:", {
             payload: response.payload,
             currentRoomRef: currentRoomRef.current,
             usernameRef: usernameRef.current,
@@ -92,52 +92,52 @@ const Index = () => {
               username: response.payload.username,
             };
             if (isNaN(newMessage.timestamp.getTime())) {
-              console.error('Invalid timestamp:', response.payload.timestamp);
+              console.error("Invalid timestamp:", response.payload.timestamp);
               newMessage.timestamp = new Date();
             }
             setMessages((prev) => {
               const updated = [...prev, newMessage];
-              console.log('Updated messages:', updated);
+              console.log("Updated messages:", updated);
               return updated;
             });
           } else {
-            console.warn('Message ignored: Room ID mismatch', {
+            console.warn("Message ignored: Room ID mismatch", {
               messageRoomId: response.payload.roomId,
               currentRoomRef: currentRoomRef.current,
             });
           }
-        } else if (response.type === 'error') {
-          console.error('Server error:', response.payload.message);
+        } else if (response.type === "error") {
+          console.error("Server error:", response.payload.message);
           toast({
-            variant: 'destructive',
-            title: 'Error in joining',
+            variant: "destructive",
+            title: "Error in joining",
             description: response.payload.message,
           });
-        } else if (response.type === 'user-left') {
-          console.log('User left:', response.payload);
+        } else if (response.type === "user-left") {
+          console.log("User left:", response.payload);
           toast({
             title: `${response.payload.username} left.`,
             description: `${response.payload.message} ${response.payload.roomId}.`,
           });
         } else {
-          console.warn('Unknown message type:', response.type);
+          console.warn("Unknown message type:", response.type);
           toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: 'Some unexpected error occurred',
+            variant: "destructive",
+            title: "Error",
+            description: "Some unexpected error occurred",
           });
         }
       } catch (err) {
-        console.error('Failed to parse WebSocket message:', err, e.data);
+        console.error("Failed to parse WebSocket message:", err, e.data);
       }
     };
 
     ws.onerror = (e) => {
-      console.error('WebSocket error:', e);
+      console.error("WebSocket error:", e);
     };
 
     ws.onclose = () => {
-      console.log('WebSocket connection closed, ws:', ws);
+      console.log("WebSocket connection closed, ws:", ws);
       setSocket(null);
       setIsConnected(false);
       socketRef.current = null;
@@ -145,8 +145,12 @@ const Index = () => {
     };
 
     return () => {
-      console.log('Cleaning up WebSocket, socketRef:', socketRef.current);
+      console.log("Cleaning up WebSocket, socketRef:", socketRef.current);
       if (socketRef.current) {
+        socketRef.current.onopen = null;
+        socketRef.current.onmessage = null;
+        socketRef.current.onerror = null;
+        socketRef.current.onclose = null;
         socketRef.current.close();
         socketRef.current = null;
       }
@@ -155,7 +159,7 @@ const Index = () => {
 
   // Log state changes
   useEffect(() => {
-    console.log('State updated:', {
+    console.log("State updated:", {
       currentRoomRef: currentRoomRef.current,
       usernameRef: usernameRef.current,
       isConnected,
@@ -177,7 +181,9 @@ const Index = () => {
               roomId={currentRoomRef.current}
               username={usernameRef.current}
               socket={socket}
-              setCurrentRoom={(value: string) => (currentRoomRef.current = value)}
+              setCurrentRoom={(value: string | null) =>
+                (currentRoomRef.current = value)
+              }
               connected={isConnected}
             />
           </div>

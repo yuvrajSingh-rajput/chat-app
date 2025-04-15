@@ -14,10 +14,11 @@ const Message: React.FC<MessageProps> = ({
   content, 
   timestamp, 
   isCurrentUser,
-  username = isCurrentUser ? 'You' : 'User'
+  username
 }) => {
   // Create initials for the avatar
-  const initials = username
+  const displayName = isCurrentUser ? 'You' : username || 'User';
+  const initials = (username || 'User')
     .split(' ')
     .map(word => word.charAt(0))
     .join('')

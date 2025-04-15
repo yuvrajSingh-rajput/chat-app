@@ -1,5 +1,5 @@
-import { WebSocket, WebSocketServer } from 'ws';
-import { v4 as uuidv4 } from 'uuid';
+import { WebSocket, WebSocketServer } from "ws";
+import { v4 as uuidv4 } from "uuid";
 
 const wss = new WebSocketServer({ port: 8080 });
 
@@ -8,16 +8,16 @@ const allSockets: Map<
   { socket: WebSocket; username: string; roomName: string }[]
 > = new Map();
 
-wss.on('connection', (socket) => {
-  console.log('User connected!');
+wss.on("connection", (socket) => {
+  console.log("User connected!");
 
-  socket.on('message', (data) => {
+  socket.on("message", (data) => {
     try {
       const message = JSON.parse(data.toString());
-      console.log('Server received:', message);
+      console.log("Server received:", message);
 
       // Handle creating a room
-      if (message.type === 'create-room') {
+      if (message.type === "create-room") {
         const newRoomId: string = uuidv4();
 
         // Add the socket to the new room along with the username and roomName
@@ -30,31 +30,31 @@ wss.on('connection', (socket) => {
         ]);
 
         const response = {
-          type: 'room-created',
+          type: "room-created",
           payload: {
             roomName: message.payload.roomName,
             username: message.payload.username,
             roomId: newRoomId,
           },
         };
-        console.log('Sending room-created:', response);
+        console.log("Sending room-created:", response);
         socket.send(JSON.stringify(response));
 
         console.log(`New room created: ${newRoomId}`);
       }
 
       // Handle joining a room
-      else if (message.type === 'join-room') {
+      else if (message.type === "join-room") {
         const roomId: string = message.payload.roomId;
 
         if (!allSockets.has(roomId)) {
           const errorResponse = {
-            type: 'error',
+            type: "error",
             payload: {
               message: `Room ${roomId} does not exist. Please check the Room ID.`,
             },
           };
-          console.log('Sending error:', errorResponse);
+          console.log("Sending error:", errorResponse);
           socket.send(JSON.stringify(errorResponse));
           return;
         }
@@ -65,36 +65,36 @@ wss.on('connection', (socket) => {
           roomSockets.push({
             socket,
             username: message.payload.username,
-            roomName: roomSockets[0]?.roomName || '',
+            roomName: roomSockets[0]?.roomName || "",
           });
         }
 
         // Notify the joining user
         const joinResponse = {
-          type: 'user-joined',
+          type: "user-joined",
           payload: {
             message: `${message.payload.username} has joined the room.`,
             roomId: roomId,
             username: message.payload.username,
-            roomName: roomSockets[0]?.roomName || '',
+            roomName: roomSockets[0]?.roomName || "",
           },
         };
-        console.log('Sending user-joined to joining user:', joinResponse);
+        console.log("Sending user-joined to joining user:", joinResponse);
         socket.send(JSON.stringify(joinResponse));
 
         // Notify others in the room
         roomSockets.forEach((s) => {
           if (s.socket !== socket && s.socket.readyState === WebSocket.OPEN) {
             const otherResponse = {
-              type: 'user-joined',
+              type: "user-joined",
               payload: {
                 message: `${message.payload.username} has joined the room.`,
                 roomId: roomId,
                 username: message.payload.username,
-                roomName: roomSockets[0]?.roomName || '',
+                roomName: roomSockets[0]?.roomName || "",
               },
             };
-            console.log('Sending user-joined to others:', otherResponse);
+            console.log("Sending user-joined to others:", otherResponse);
             s.socket.send(JSON.stringify(otherResponse));
           }
         });
@@ -103,7 +103,7 @@ wss.on('connection', (socket) => {
       }
 
       // Handle chat messages
-      else if (message.type === 'chat') {
+      else if (message.type === "chat") {
         let currentRoomId: string | null = null;
         const { id, content, timestamp, username } = message.payload;
 
@@ -122,7 +122,7 @@ wss.on('connection', (socket) => {
           roomSockets.forEach((s) => {
             if (s.socket.readyState === WebSocket.OPEN) {
               const chatResponse = {
-                type: 'chat',
+                type: "chat",
                 payload: {
                   id,
                   content,
@@ -131,17 +131,20 @@ wss.on('connection', (socket) => {
                   roomId: currentRoomId,
                 },
               };
-              console.log(`Broadcasting to room ${currentRoomId}:`, chatResponse);
+              console.log(
+                `Broadcasting to room ${currentRoomId}:`,
+                chatResponse
+              );
               s.socket.send(JSON.stringify(chatResponse));
             }
           });
         } else {
-          console.warn('Chat message ignored: User not in any room');
+          console.warn("Chat message ignored: User not in any room");
         }
       }
 
       // Handle leaving a room
-      else if (message.type === 'leave-room') {
+      else if (message.type === "leave-room") {
         const roomId: string = message.payload.roomId;
         const username: string = message.payload.username;
 
@@ -155,13 +158,13 @@ wss.on('connection', (socket) => {
             updatedUsers.forEach((u) => {
               if (u.socket.readyState === WebSocket.OPEN) {
                 const leaveResponse = {
-                  type: 'user-left',
+                  type: "user-left",
                   payload: {
                     message: `${username} has left the room`,
                     roomId: roomId,
                   },
                 };
-                console.log('Sending user-left:', leaveResponse);
+                console.log("Sending user-left:", leaveResponse);
                 u.socket.send(JSON.stringify(leaveResponse));
               }
             });
@@ -174,16 +177,37 @@ wss.on('connection', (socket) => {
         }
       }
     } catch (err) {
-      console.error('Failed to parse message:', err);
+      console.error("Failed to parse message:", err);
     }
   });
 
-  socket.on('close', () => {
-    console.log('User disconnected');
+  socket.on("close", () => {
+    console.log("User disconnected");
 
-    // Remove socket from all rooms
     for (const [roomId, sockets] of allSockets.entries()) {
       const filtered = sockets.filter((s) => s.socket !== socket);
+
+      if (filtered.length !== sockets.length) {
+        // Find user who left
+        const user = sockets.find((s) => s.socket === socket);
+        if (user) {
+          filtered.forEach((s) => {
+            if (s.socket.readyState === WebSocket.OPEN) {
+              s.socket.send(
+                JSON.stringify({
+                  type: "user-left",
+                  payload: {
+                    username: user.username,
+                    roomId,
+                    message: `${user.username} has disconnected.`,
+                  },
+                })
+              );
+            }
+          });
+        }
+      }
+
       if (filtered.length > 0) {
         allSockets.set(roomId, filtered);
       } else {

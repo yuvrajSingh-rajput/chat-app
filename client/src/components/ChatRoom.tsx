@@ -21,7 +21,7 @@ interface ChatRoomProps {
   roomId: string;
   username: string;
   socket: WebSocket;
-  setCurrentRoom: React.Dispatch<React.SetStateAction<string>>;
+  setCurrentRoom: React.Dispatch<React.SetStateAction<string | null>>;
   connected: boolean;
 }
 
