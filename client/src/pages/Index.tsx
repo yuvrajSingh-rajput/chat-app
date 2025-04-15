@@ -71,6 +71,9 @@ const Index = () => {
             usernameRef: usernameRef.current,
           });
           currentRoomRef.current = response.payload.roomId;
+          if (!usernameRef.current) {
+            usernameRef.current = response.payload.username || "Unknown";
+          }
           // usernameRef.current = response.payload.username || 'Unknown';
           setRoomName(response.payload.roomName || "Unnamed Room");
           toast({
