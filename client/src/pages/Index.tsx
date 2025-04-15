@@ -33,7 +33,7 @@ const Index = () => {
       return;
     }
 
-    const ws = new WebSocket("ws://localhost:8080");
+    const ws = new WebSocket("wss://chat-app-5-jzj9.onrender.com");
     socketRef.current = ws;
     setSocket(ws);
 
