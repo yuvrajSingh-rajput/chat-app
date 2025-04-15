@@ -140,6 +140,7 @@ wss.on("connection", (socket) => {
                                     payload: {
                                         message: `${username} has left the room`,
                                         roomId: roomId,
+                                        username,
                                     },
                                 };
                                 console.log("Sending user-left:", leaveResponse);
@@ -150,6 +151,19 @@ wss.on("connection", (socket) => {
                     else {
                         // No users left in room, delete it
                         allSockets.delete(roomId);
+                    }
+                    // Notify the leaving user
+                    if (socket.readyState === ws_1.WebSocket.OPEN) {
+                        const leaveResponse = {
+                            type: "user-left",
+                            payload: {
+                                message: `${username} has left the room`,
+                                roomId: roomId,
+                                username,
+                            },
+                        };
+                        console.log("Sending user-left to leaving user:", leaveResponse);
+                        socket.send(JSON.stringify(leaveResponse));
                     }
                     console.log(`${username} left room: ${roomId}`);
                 }

@@ -147,13 +147,13 @@ wss.on("connection", (socket) => {
       else if (message.type === "leave-room") {
         const roomId: string = message.payload.roomId;
         const username: string = message.payload.username;
-
+      
         const roomUsers = allSockets.get(roomId);
         if (roomUsers) {
           const updatedUsers = roomUsers.filter((u) => u.socket !== socket);
           if (updatedUsers.length > 0) {
             allSockets.set(roomId, updatedUsers);
-
+      
             // Notify others in the room
             updatedUsers.forEach((u) => {
               if (u.socket.readyState === WebSocket.OPEN) {
@@ -162,6 +162,7 @@ wss.on("connection", (socket) => {
                   payload: {
                     message: `${username} has left the room`,
                     roomId: roomId,
+                    username,
                   },
                 };
                 console.log("Sending user-left:", leaveResponse);
@@ -172,7 +173,21 @@ wss.on("connection", (socket) => {
             // No users left in room, delete it
             allSockets.delete(roomId);
           }
-
+      
+          // Notify the leaving user
+          if (socket.readyState === WebSocket.OPEN) {
+            const leaveResponse = {
+              type: "user-left",
+              payload: {
+                message: `${username} has left the room`,
+                roomId: roomId,
+                username,
+              },
+            };
+            console.log("Sending user-left to leaving user:", leaveResponse);
+            socket.send(JSON.stringify(leaveResponse));
+          }
+      
           console.log(`${username} left room: ${roomId}`);
         }
       }
